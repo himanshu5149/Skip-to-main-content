@@ -1,0 +1,96 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints ---
+
+    function isValidScamReport(data) {
+      return data.target is string && data.target.size() <= 512 &&
+             data.targetType in ['website', 'phone', 'email', 'handle', 'other'] &&
+             data.description is string && data.description.size() <= 5000 &&
+             data.reporterId == request.auth.uid &&
+             data.createdAt == request.time &&
+             data.updatedAt == request.time &&
+             data.status == 'pending' &&
+             (data.keys().hasAll(['target', 'targetType', 'description', 'reporterId', 'status', 'createdAt', 'updatedAt']) && data.keys().size() >= 7);
+    }
+
+    function isValidUserProfile(data) {
+      return data.displayName is string && data.displayName.size() <= 100 &&
+             data.createdAt == request.time &&
+             (!data.keys().contains('isAdmin') || data.isAdmin == false);
+    }
+
+    // --- Collection Rules ---
+
+    match /scamReports/{reportId} {
+      allow get: if true;
+      allow list: if true; // Public directory of scams
+      
+      allow create: if isSignedIn() && isValidScamReport(incoming()) && isValidId(reportId);
+      
+      allow update: if (
+        isSignedIn() && (
+          // Owner can add more details or evidence
+          (isOwner(existing().reporterId) && 
+           incoming().diff(existing()).affectedKeys().hasOnly(['description', 'updatedAt', 'evidenceUrls']) &&
+           incoming().updatedAt == request.time &&
+           incoming().description is string && incoming().description.size() <= 5000) ||
+          // Community can vote (increment only)
+          (incoming().diff(existing()).affectedKeys().hasOnly(['votesCount']) &&
+           incoming().votesCount == existing().votesCount + 1) ||
+          // Admin can verify or moderate
+          isAdmin()
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if true;
+      allow create: if isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']) &&
+                    incoming().displayName is string;
+      allow delete: if false;
+    }
+
+    // Admin list - managed via console or secure backend
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+    }
+  }
+}

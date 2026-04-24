@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "ScamReport": {
+      "title": "Scam Report",
+      "description": "A report detailing a scam encounter.",
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "The scam target (URL, phone number, email, or handle)."
+        },
+        "targetType": {
+          "type": "string",
+          "enum": ["website", "phone", "email", "handle", "other"],
+          "description": "The category of the scam target."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed explanation of the scam."
+        },
+        "scamDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the scam occurred or was discovered."
+        },
+        "reporterId": {
+          "type": "string",
+          "description": "The ID of the user who reported it."
+        },
+        "reporterEmail": {
+          "type": "string",
+          "description": "Email of the reporter (for internal moderation)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "verified", "rejected"],
+          "description": "Verification status of the report."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the report was first submitted."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the report was last updated."
+        },
+        "evidenceUrls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Links to screenshots or other evidence."
+        },
+        "votesCount": {
+          "type": "integer",
+          "description": "Number of users who found this report helpful."
+        }
+      },
+      "required": ["target", "targetType", "description", "reporterId", "status", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Basic public information about a user.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isAdmin": { "type": "boolean" }
+      },
+      "required": ["displayName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/scamReports/{reportId}": {
+      "schema": "ScamReport",
+      "description": "Collection of community scam reports."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents."
+    }
+  }
+}
